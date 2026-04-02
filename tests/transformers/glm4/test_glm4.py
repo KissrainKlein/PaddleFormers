@@ -109,9 +109,7 @@ class Glm4ModelTester:
         # 验证所有需要训练的参数是否都成功计算了梯度
         for name, p in model.named_parameters():
             if not p.stop_gradient:
-                self.parent.assertIsNotNone(
-                    p.grad, msg=f"Parameter {name} has no gradient."
-                )
+                self.parent.assertIsNotNone(p.grad, msg=f"Parameter {name} has no gradient.")
 
 
 class Glm4Test(unittest.TestCase):
