@@ -1,11 +1,25 @@
+# Copyright (c) 2026 PaddlePaddle Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from __future__ import annotations
 
 import paddle
 import paddle.nn as nn
 import paddle.nn.functional as F
 
-from ..model_utils import PretrainedModel
 from ..model_outputs import CausalLMOutputWithPast
+from ..model_utils import PretrainedModel
 from .configuration import Glm4Config
 
 __all__ = [
@@ -71,6 +85,10 @@ def apply_rotary_pos_emb(q, k, cos, sin, unsqueeze_dim=1):
     cos = paddle.repeat_interleave(cos, repeats=2, axis=-1)
     sin = paddle.repeat_interleave(sin, repeats=2, axis=-1)
 
+    # 关键修复：将 cos 和 sin 的数据类型转换为与 q/k 相同
+    cos = cos.astype(q.dtype)
+    sin = sin.astype(q.dtype)
+
     rotary_dim = cos.shape[-1]
     q_rot, q_pass = q[..., :rotary_dim], q[..., rotary_dim:]
     k_rot, k_pass = k[..., :rotary_dim], k[..., rotary_dim:]
@@ -95,10 +113,7 @@ class Glm4RotaryEmbedding(nn.Layer):
         if self.rotary_dim % 2 != 0:
             self.rotary_dim -= 1
 
-        inv_freq = 1.0 / (
-            self.base
-            ** (paddle.arange(0, self.rotary_dim, 2, dtype="float32") / self.rotary_dim)
-        )
+        inv_freq = 1.0 / (self.base ** (paddle.arange(0, self.rotary_dim, 2, dtype="float32") / self.rotary_dim))
         self.register_buffer("inv_freq", inv_freq, persistable=False)
 
     def forward(self, position_ids):
@@ -179,15 +194,11 @@ class Glm4Attention(nn.Layer):
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
 
-        query_states = query_states.reshape(
-            [bsz, q_len, self.num_heads, self.head_dim]
-        ).transpose([0, 2, 1, 3])
-        key_states = key_states.reshape(
-            [bsz, q_len, self.num_key_value_heads, self.head_dim]
-        ).transpose([0, 2, 1, 3])
-        value_states = value_states.reshape(
-            [bsz, q_len, self.num_key_value_heads, self.head_dim]
-        ).transpose([0, 2, 1, 3])
+        query_states = query_states.reshape([bsz, q_len, self.num_heads, self.head_dim]).transpose([0, 2, 1, 3])
+        key_states = key_states.reshape([bsz, q_len, self.num_key_value_heads, self.head_dim]).transpose([0, 2, 1, 3])
+        value_states = value_states.reshape([bsz, q_len, self.num_key_value_heads, self.head_dim]).transpose(
+            [0, 2, 1, 3]
+        )
 
         if position_ids is None:
             position_ids = paddle.arange(q_len, dtype="int64").unsqueeze(0).tile([bsz, 1])
@@ -197,9 +208,7 @@ class Glm4Attention(nn.Layer):
         else:
             cos, sin = position_embeddings
 
-        query_states, key_states = apply_rotary_pos_emb(
-            query_states, key_states, cos, sin, unsqueeze_dim=1
-        )
+        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, unsqueeze_dim=1)
 
         if past_key_value is not None and past_key_value[0] is not None:
             past_k, past_v = past_key_value
@@ -215,9 +224,7 @@ class Glm4Attention(nn.Layer):
             key_states = paddle.repeat_interleave(key_states, repeat_factor, axis=1)
             value_states = paddle.repeat_interleave(value_states, repeat_factor, axis=1)
 
-        attn_weights = paddle.matmul(
-            query_states, key_states, transpose_y=True
-        ) / (self.head_dim ** 0.5)
+        attn_weights = paddle.matmul(query_states, key_states, transpose_y=True) / (self.head_dim**0.5)
 
         kv_len = key_states.shape[2]
         cur_q_len = query_states.shape[2]
@@ -243,14 +250,10 @@ class Glm4Attention(nn.Layer):
             else:
                 attn_weights = attn_weights + attention_mask
 
-        attn_weights = F.softmax(attn_weights.astype("float32"), axis=-1).astype(
-            query_states.dtype
-        )
+        attn_weights = F.softmax(attn_weights.astype("float32"), axis=-1).astype(query_states.dtype)
         attn_output = paddle.matmul(attn_weights, value_states)
 
-        attn_output = attn_output.transpose([0, 2, 1, 3]).reshape(
-            [bsz, cur_q_len, self.num_heads * self.head_dim]
-        )
+        attn_output = attn_output.transpose([0, 2, 1, 3]).reshape([bsz, cur_q_len, self.num_heads * self.head_dim])
         attn_output = self.o_proj(attn_output)
 
         return attn_output, present
@@ -362,9 +365,7 @@ class Glm4Model(Glm4PretrainedModel):
             config.hidden_size,
             padding_idx=self.padding_idx,
         )
-        self.layers = nn.LayerList(
-            [Glm4DecoderLayer(config) for _ in range(config.num_hidden_layers)]
-        )
+        self.layers = nn.LayerList([Glm4DecoderLayer(config) for _ in range(config.num_hidden_layers)])
         self.norm = Glm4RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.rotary_emb = Glm4RotaryEmbedding(config)
 
@@ -402,9 +403,7 @@ class Glm4Model(Glm4PretrainedModel):
             past_length = past_key_values[0][0].shape[2]
 
         if position_ids is None:
-            position_ids = paddle.arange(
-                past_length, past_length + seq_len, dtype="int64"
-            ).unsqueeze(0).tile([bsz, 1])
+            position_ids = paddle.arange(past_length, past_length + seq_len, dtype="int64").unsqueeze(0).tile([bsz, 1])
 
         position_embeddings = self.rotary_emb(position_ids)
 
@@ -477,9 +476,7 @@ class Glm4ForCausalLM(Glm4PretrainedModel):
                 paddle.zeros_like(position_ids),
             )
         else:
-            position_ids = paddle.arange(
-                input_ids.shape[1], dtype="int64"
-            ).unsqueeze(0).tile([input_ids.shape[0], 1])
+            position_ids = paddle.arange(input_ids.shape[1], dtype="int64").unsqueeze(0).tile([input_ids.shape[0], 1])
 
         if (
             past_key_values is not None
