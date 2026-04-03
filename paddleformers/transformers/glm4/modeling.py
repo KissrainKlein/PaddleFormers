@@ -85,10 +85,6 @@ def apply_rotary_pos_emb(q, k, cos, sin, unsqueeze_dim=1):
     cos = paddle.repeat_interleave(cos, repeats=2, axis=-1)
     sin = paddle.repeat_interleave(sin, repeats=2, axis=-1)
 
-    # 关键修复：将 cos 和 sin 的数据类型转换为与 q/k 相同
-    cos = cos.astype(q.dtype)
-    sin = sin.astype(q.dtype)
-
     rotary_dim = cos.shape[-1]
     q_rot, q_pass = q[..., :rotary_dim], q[..., rotary_dim:]
     k_rot, k_pass = k[..., :rotary_dim], k[..., rotary_dim:]
@@ -99,7 +95,6 @@ def apply_rotary_pos_emb(q, k, cos, sin, unsqueeze_dim=1):
     q_embed = paddle.concat([q_embed, q_pass], axis=-1)
     k_embed = paddle.concat([k_embed, k_pass], axis=-1)
     return q_embed, k_embed
-
 
 class Glm4RotaryEmbedding(nn.Layer):
     def __init__(self, config: Glm4Config):
