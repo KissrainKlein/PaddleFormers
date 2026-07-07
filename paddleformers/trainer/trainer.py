@@ -499,16 +499,24 @@ class Trainer:
         default_callbacks = DEFAULT_CALLBACKS.copy()
 
         _im_monitors = getattr(self.args, "internal_medicine_monitors", "")
-        _im_interval = getattr(self.args, "internal_medicine_monitor_interval", None)
-        if _im_monitors and _im_interval != 0:
-            # Resolve the metrics log directory: explicit -> use as-is; empty -> output_dir.
+        _im_interval = getattr(self.args, "internal_medicine_monitor_interval", 0)
+        if _im_monitors:
+            if _im_interval is None:
+                raise ValueError(
+                    "internal_medicine_monitor_interval is None. Expected int "
+                    "(0 to disable monitoring, positive int for sampling interval). "
+                )
+            _im_interval = int(_im_interval)
+        else:
+            _im_interval = 0
+        if _im_monitors and _im_interval > 0:
             _im_log_dir = (
                 getattr(self.args, "internal_medicine_log_dir", "") or getattr(self.args, "output_dir", "") or "."
             )
             default_callbacks.append(
                 InternalMedicineCallback(
                     monitors=_im_monitors,
-                    monitor_interval=_im_interval,  # None -> callback warns + uses 1
+                    monitor_interval=_im_interval,
                     qk_row_stride=getattr(self.args, "internal_medicine_qk_row_stride", 1),
                     log_dir=_im_log_dir,
                 )
