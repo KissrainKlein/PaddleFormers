@@ -180,6 +180,16 @@ import_structure = {
         "CosineAnnealingWithWarmupDecay",
         "LinearAnnealingWithWarmupDecay",
     ],
+    "hunyuan.configuration": ["HunyuanConfig"],
+    "hunyuan.modeling": [
+        "HunyuanModel",
+        "HunyuanPretrainedModel",
+        "HunyuanForCausalLM",
+        "HunYuanDenseV1ForCausalLM",
+        "HunyuanForCausalLMPipe",
+    ],
+    "hunyuan.tokenizer": ["HunyuanTokenizer"],
+    "hunyuan.tokenizer_fast": ["HunyuanTokenizerFast"],
     "qwen2.configuration": ["Qwen2Config"],
     "qwen2.modeling": [
         "Qwen2Model",
@@ -283,6 +293,7 @@ import_structure = {
         "Qwen3NextPretrainingCriterion",
     ],
     "llama": [],
+    "hunyuan": [],
     "qwen2": [],
     "glm_ocr": [],
     "qwen3": [],
@@ -387,6 +398,7 @@ if TYPE_CHECKING:
     from .paddleocr_vl import *
     from .llama import *
     from .optimization import *
+    from .hunyuan import *
     from .qwen2 import *
     from .qwen2_5_vl import *
     from .qwen2_moe import *
