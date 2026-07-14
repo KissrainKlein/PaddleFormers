@@ -19,7 +19,7 @@ import paddle.nn as nn
 import paddle.nn.functional as F
 
 from ..model_outputs import CausalLMOutputWithPast
-from ..model_utils import PretrainedModel
+from ..model_utils import PretrainedModel, register_base_model
 from .configuration import Glm4Config
 
 __all__ = [
@@ -85,12 +85,17 @@ def apply_rotary_pos_emb(q, k, cos, sin, unsqueeze_dim=1):
     cos = paddle.repeat_interleave(cos, repeats=2, axis=-1)
     sin = paddle.repeat_interleave(sin, repeats=2, axis=-1)
 
+    # RoPE frequencies are calculated in fp32.  Cast each copy at its point of
+    # use so mixed-precision Q/K projections retain their respective dtypes.
+    q_cos, q_sin = cos.astype(q.dtype), sin.astype(q.dtype)
+    k_cos, k_sin = cos.astype(k.dtype), sin.astype(k.dtype)
+
     rotary_dim = cos.shape[-1]
     q_rot, q_pass = q[..., :rotary_dim], q[..., rotary_dim:]
     k_rot, k_pass = k[..., :rotary_dim], k[..., rotary_dim:]
 
-    q_embed = (q_rot * cos) + (rotate_half(q_rot) * sin)
-    k_embed = (k_rot * cos) + (rotate_half(k_rot) * sin)
+    q_embed = (q_rot * q_cos) + (rotate_half(q_rot) * q_sin)
+    k_embed = (k_rot * k_cos) + (rotate_half(k_rot) * k_sin)
 
     q_embed = paddle.concat([q_embed, q_pass], axis=-1)
     k_embed = paddle.concat([k_embed, k_pass], axis=-1)
@@ -305,16 +310,7 @@ class Glm4PretrainedModel(PretrainedModel):
     config_class = Glm4Config
     base_model_prefix = "model"
     supports_gradient_checkpointing = False
-
-    _hf_linear_weight_suffixes = (
-        "q_proj.weight",
-        "k_proj.weight",
-        "v_proj.weight",
-        "o_proj.weight",
-        "gate_up_proj.weight",
-        "down_proj.weight",
-        "lm_head.weight",
-    )
+    transpose_weight_keys = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_up_proj", "down_proj", "lm_head"]
 
     def _init_weights(self, layer):
         return
@@ -323,32 +319,48 @@ class Glm4PretrainedModel(PretrainedModel):
         return
 
     @classmethod
-    def _convert_hf_state_dict(cls, state_dict):
-        """
-        HF/PyTorch Linear weight: [out_features, in_features]
-        Paddle nn.Linear weight:  [in_features, out_features]
+    def _gen_aoa_config(cls, config: Glm4Config):
+        """Describe the GLM-4-9B-0414 HF checkpoint layout for flex loading."""
+        model_prefix = "" if cls == cls.base_model_class else "model."
+        aoa_statements = [
+            f"model.embed_tokens.weight -> {model_prefix}embed_tokens.weight",
+            f"model.norm.weight -> {model_prefix}norm.weight",
+        ]
+        # The base model has no lm_head.  The causal model target is deliberately
+        # unprefixed even though its transformer weights are under ``model.``.
+        if cls != cls.base_model_class:
+            aoa_statements.append("lm_head.weight^T -> lm_head.weight")
 
-        这里必须按名字强制转置，不能依赖 shape mismatch。
-        因为 q_proj/o_proj 这类 4096x4096 方阵 shape 一样，但语义仍然相反。
-        """
-        new_state_dict = {}
-        for k, v in state_dict.items():
-            if (
-                isinstance(v, paddle.Tensor)
-                and v.ndim == 2
-                and any(k.endswith(suffix) for suffix in cls._hf_linear_weight_suffixes)
-            ):
-                v = v.transpose([1, 0])
-            new_state_dict[k] = v
-        return new_state_dict
+        layer_prefix = "model.layers.$LAYER_ID"
+        target_prefix = f"{model_prefix}layers.$LAYER_ID"
+        aoa_statements.extend(
+            [
+                f"{layer_prefix}.input_layernorm.weight -> {target_prefix}.input_layernorm.weight",
+                f"{layer_prefix}.post_self_attn_layernorm.weight -> {target_prefix}.post_self_attn_layernorm.weight",
+                f"{layer_prefix}.post_attention_layernorm.weight -> {target_prefix}.post_attention_layernorm.weight",
+                f"{layer_prefix}.post_mlp_layernorm.weight -> {target_prefix}.post_mlp_layernorm.weight",
+                f"{layer_prefix}.self_attn.q_proj.weight^T -> {target_prefix}.self_attn.q_proj.weight",
+                f"{layer_prefix}.self_attn.k_proj.weight^T -> {target_prefix}.self_attn.k_proj.weight",
+                f"{layer_prefix}.self_attn.v_proj.weight^T -> {target_prefix}.self_attn.v_proj.weight",
+                # GLM-4-9B-0414 has no o_proj.bias; Glm4Attention deliberately
+                # creates the O projection without bias, so no AOA rule may name it.
+                f"{layer_prefix}.self_attn.o_proj.weight^T -> {target_prefix}.self_attn.o_proj.weight",
+                f"{layer_prefix}.mlp.gate_up_proj.weight^T -> {target_prefix}.mlp.gate_up_proj.weight",
+                f"{layer_prefix}.mlp.down_proj.weight^T -> {target_prefix}.mlp.down_proj.weight",
+            ]
+        )
+        if config.attention_bias:
+            aoa_statements.extend(
+                [
+                    f"{layer_prefix}.self_attn.q_proj.bias -> {target_prefix}.self_attn.q_proj.bias",
+                    f"{layer_prefix}.self_attn.k_proj.bias -> {target_prefix}.self_attn.k_proj.bias",
+                    f"{layer_prefix}.self_attn.v_proj.bias -> {target_prefix}.self_attn.v_proj.bias",
+                ]
+            )
+        return {"aoa_statements": aoa_statements}
 
-    def set_state_dict(self, state_dict, *args, **kwargs):
-        already_converted = kwargs.pop("already_converted", False)
-        if not already_converted:
-            state_dict = self._convert_hf_state_dict(state_dict)
-        return super().set_state_dict(state_dict, *args, **kwargs)
 
-
+@register_base_model
 class Glm4Model(Glm4PretrainedModel):
     def __init__(self, config: Glm4Config):
         config = _normalize_config_dtype(config)
@@ -523,11 +535,14 @@ class Glm4ForCausalLM(Glm4PretrainedModel):
 
         loss = None
         if labels is not None:
+            # Keep the standard causal shift: callers must provide unshifted
+            # labels aligned with input_ids, with ignored positions set to -100.
             shift_logits = logits[:, :-1, :]
             shift_labels = labels[:, 1:]
             loss = F.cross_entropy(
                 shift_logits.reshape([-1, shift_logits.shape[-1]]),
                 shift_labels.reshape([-1]),
+                ignore_index=-100,
                 reduction="mean",
             )
 

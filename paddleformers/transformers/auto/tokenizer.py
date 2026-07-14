@@ -42,7 +42,12 @@ from transformers.models.encoder_decoder.configuration_encoder_decoder import (
     EncoderDecoderConfig,
 )
 from transformers.tokenization_utils_base import TOKENIZER_CONFIG_FILE
-from transformers.tokenization_utils_tokenizers import TokenizersBackend
+try:
+    from transformers.tokenization_utils_tokenizers import TokenizersBackend
+except ImportError:
+    # Transformers < 5 does not expose TokenizersBackend; its fast tokenizer
+    # provides the compatible from_pretrained interface used below.
+    from transformers import PreTrainedTokenizerFast as TokenizersBackend
 from transformers.utils import cached_file
 
 from ...utils.download import DownloadSource, resolve_file_path
