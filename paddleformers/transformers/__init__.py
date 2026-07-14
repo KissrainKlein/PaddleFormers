@@ -348,6 +348,27 @@ import_structure = {
     ],
     "glm_ocr.processor": ["Glm46VProcessor"],
     "glm_ocr.image_processor": ["Glm46VImageProcessor"],
+    "intern_lm2_5.configuration": ["InternLM25Config"],
+    "intern_lm2_5.modeling": [
+        "InternLM25DecoderLayer",
+        "InternLM25Model",
+        "InternLM25ForCausalLM",
+        "InternLM25PretrainedModel",
+        "InternLM25ForSequenceClassification",
+        "InternLM25ForQuestionAnswering",
+        "InternLM25ForTokenClassification",
+    ],
+    "intern_lm2_5.tokenizer": ["InternLM25Tokenizer"],
+    "intern.configuration": ["InternLM2Config"],
+    "intern.modeling": [
+        "InternLM2PretrainedModel",
+        "InternLM2Model",
+        "InternLM2ForCausalLM",
+        "InternLM2ForSequenceClassification",
+        "InternLM2ForQuestionAnswering",
+        "InternLM2ForTokenClassification",
+    ],
+    "intern_lm2.tokenizer": ["InternLM2Tokenizer"],
     "gemma4_moe.configuration": ["Gemma4MoeConfig"],
     "gemma4_moe.modeling": ["Gemma4MoeForCausalLM"],
     "gemma4_moe": [],
@@ -433,6 +454,9 @@ if TYPE_CHECKING:
     from .phi3 import *
     from .gemma3_text import *
     from .glm_ocr import *
+    from .intern_lm2_5 import *
+    from .intern import *
+    from .intern_lm2 import InternLM2Tokenizer
     from .gemma4_moe import *
     from .phi4 import *
 else:
