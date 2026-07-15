@@ -356,6 +356,9 @@ import_structure = {
     ],
     "glm_ocr.processor": ["Glm46VProcessor"],
     "glm_ocr.image_processor": ["Glm46VImageProcessor"],
+    "olmo2.configuration": ["Olmo2Config"],
+    "olmo2.modeling": ["Olmo2DecoderLayer", "Olmo2Model", "Olmo2ForCausalLM", "Olmo2ForCausalLMPipe"],
+    "olmo2": [],
     "intern_lm3.configuration": ["InternLM3Config"],
     "intern_lm3.modeling": [
         "InternLM3Model",
@@ -470,6 +473,7 @@ if TYPE_CHECKING:
     from .phi3 import *
     from .gemma3_text import *
     from .glm_ocr import *
+    from .olmo2 import *
     from .intern_lm3 import *
     from .intern_lm2_5 import *
     from .intern import *
