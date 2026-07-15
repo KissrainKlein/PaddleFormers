@@ -348,6 +348,13 @@ import_structure = {
     ],
     "glm_ocr.processor": ["Glm46VProcessor"],
     "glm_ocr.image_processor": ["Glm46VImageProcessor"],
+    "intern_lm3.configuration": ["InternLM3Config"],
+    "intern_lm3.modeling": [
+        "InternLM3Model",
+        "InternLM3ForCausalLM",
+        "InternLM3ForCausalLMPipe",
+    ],
+    "intern_lm3.tokenizer": ["InternLM3Tokenizer"],
     "intern_lm2_5.configuration": ["InternLM25Config"],
     "intern_lm2_5.modeling": [
         "InternLM25DecoderLayer",
@@ -454,6 +461,7 @@ if TYPE_CHECKING:
     from .phi3 import *
     from .gemma3_text import *
     from .glm_ocr import *
+    from .intern_lm3 import *
     from .intern_lm2_5 import *
     from .intern import *
     from .intern_lm2 import InternLM2Tokenizer
