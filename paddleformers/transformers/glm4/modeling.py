@@ -328,8 +328,9 @@ class Glm4PretrainedModel(PretrainedModel):
         HF/PyTorch Linear weight: [out_features, in_features]
         Paddle nn.Linear weight:  [in_features, out_features]
 
-        这里必须按名字强制转置，不能依赖 shape mismatch。
-        因为 q_proj/o_proj 这类 4096x4096 方阵 shape 一样，但语义仍然相反。
+        Transpose weights by parameter name instead of relying on shape
+        mismatches. Square matrices such as 4096x4096 q_proj/o_proj weights
+        have identical shapes in both frameworks but opposite semantics.
         """
         new_state_dict = {}
         for k, v in state_dict.items():

@@ -27,14 +27,14 @@ class Glm4ModelTester:
         self.parent = parent
         self.batch_size = 2
         self.seq_length = 8
-        # 使用较小的网络参数，保证单元测试秒级运行，且不会爆内存
+        # Keep the network small so the tests run quickly with minimal memory.
         self.vocab_size = 1000
         self.hidden_size = 32
         self.intermediate_size = 64
         self.num_hidden_layers = 2
         self.num_attention_heads = 4
         self.num_key_value_heads = 2
-        self.head_dim = 8  # GLM4 中 head_dim * num_attention_heads == hidden_size
+        self.head_dim = 8  # head_dim * num_attention_heads == hidden_size for GLM4.
 
     def get_config(self):
         return Glm4Config(
@@ -53,7 +53,7 @@ class Glm4ModelTester:
         )
 
     def prepare_inputs(self):
-        # 保证 input_ids 在 vocab_size 范围内
+        # Keep input IDs within the configured vocabulary range.
         input_ids = paddle.randint(0, self.vocab_size, (self.batch_size, self.seq_length))
         return input_ids
 
@@ -62,11 +62,11 @@ class Glm4ModelTester:
         input_ids = self.prepare_inputs()
         model = Glm4Model(config)
         model.eval()
-        # Glm4Model 默认 return_dict=True，返回字典
+        # Glm4Model returns a dictionary by default because return_dict=True.
         output = model(input_ids)
         self.parent.assertIsNotNone(output)
         self.parent.assertIn("last_hidden_state", output)
-        # 校验 hidden state 的形状 [batch_size, seq_len, hidden_size]
+        # Validate the hidden-state shape: [batch_size, seq_len, hidden_size].
         self.parent.assertEqual(
             output["last_hidden_state"].shape,
             [self.batch_size, self.seq_length, self.hidden_size],
@@ -77,10 +77,10 @@ class Glm4ModelTester:
         input_ids = self.prepare_inputs()
         model = Glm4ForCausalLM(config)
         model.eval()
-        # Glm4ForCausalLM 默认返回 CausalLMOutputWithPast 对象
+        # Glm4ForCausalLM returns CausalLMOutputWithPast by default.
         output = model(input_ids)
         self.parent.assertIsNotNone(output.logits)
-        # 校验 logits 的形状 [batch_size, seq_len, vocab_size]
+        # Validate the logits shape: [batch_size, seq_len, vocab_size].
         self.parent.assertEqual(
             output.logits.shape,
             [self.batch_size, self.seq_length, self.vocab_size],
@@ -91,7 +91,7 @@ class Glm4ModelTester:
         input_ids = self.prepare_inputs()
         model = Glm4ForCausalLM(config)
         model.train()
-        # 传入 labels 触发内部的交叉熵 Loss 计算
+        # Passing labels enables the internal cross-entropy loss calculation.
         output = model(input_ids, labels=input_ids)
         self.parent.assertIsNotNone(output.loss)
         self.parent.assertIsInstance(output.loss.item(), float)
@@ -101,12 +101,12 @@ class Glm4ModelTester:
         input_ids = self.prepare_inputs()
         model = Glm4ForCausalLM(config)
         model.train()
-        # 反向传播前清理可能残留的梯度
+        # Clear any stale gradients before backpropagation.
         model.clear_gradients()
         output = model(input_ids, labels=input_ids)
         loss = output.loss
         loss.backward()
-        # 验证所有需要训练的参数是否都成功计算了梯度
+        # Verify that every trainable parameter receives a gradient.
         for name, p in model.named_parameters():
             if not p.stop_gradient:
                 self.parent.assertIsNotNone(p.grad, msg=f"Parameter {name} has no gradient.")

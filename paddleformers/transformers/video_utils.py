@@ -365,7 +365,7 @@ def read_video_paddlecodec(
     try:
         import sys
 
-        del sys.modules["torchcodec"]
+        sys.modules.pop("torchcodec", None)
         paddle.compat.enable_torch_proxy(scope={"torchcodec"})
         from torchcodec.decoders import VideoDecoder
 

@@ -867,6 +867,13 @@ register_template(
     chat_sep="<｜end▁of▁sentence｜>",
 )
 
+register_template(
+    name="hunyuan",
+    format_user=StringFormatter(slots=["<｜hy_User｜>{{content}}<｜hy_Assistant｜>"]),
+    format_assistant=StringFormatter(slots=["{{content}}", {"eos_token"}]),
+    format_prefix=EmptyFormatter(slots=[{"bos_token"}]),
+)
+
 
 def _get_gpt_oss_prefix():
     today = datetime.now().strftime("%Y-%m-%d")

@@ -479,7 +479,11 @@ class SwanLabCallback(TrainerCallback):
             if args.logging_dir is not None:
                 init_args["logdir"] = os.getenv("SWANLAB_LOG_DIR", args.logging_dir)
 
-            if self._swanlab.get_run() is None:
+            try:
+                run = self._swanlab.get_run()
+            except RuntimeError:
+                run = None
+            if run is None:
                 self._swanlab.init(
                     **init_args,
                 )
