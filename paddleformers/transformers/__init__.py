@@ -156,6 +156,15 @@ import_structure = {
     "paddleocr_vl.modeling": ["PaddleOCRVLForConditionalGeneration"],
     "paddleocr_vl.image_processor": ["PaddleOCRVLImageProcessor"],
     "paddleocr_vl.processor": ["PaddleOCRVLProcessor"],
+    "moondream2.configuration": [
+        "Moondream2Config",
+        "Moondream2RegionConfig",
+        "Moondream2TextConfig",
+        "Moondream2VisionConfig",
+    ],
+    "moondream2.modeling": ["Moondream2ForConditionalGeneration", "Moondream2PreTrainedModel", "Moondream2VisionModel"],
+    "moondream2.image_processor": ["Moondream2ImageProcessor"],
+    "moondream2.processor": ["Moondream2Processor"],
     "gpt_oss.configuration": ["GptOssConfig"],
     "gpt_oss.modeling": ["GptOssModel", "GptOssForCausalLM", "GptOssForCausalLMPipe"],
     "kimi_k25.vision_processor": ["KimiK25VisionProcessor"],
@@ -291,6 +300,7 @@ import_structure = {
     "ernie4_5_moe": ["Ernie4_5_MoeDecoderLayer", "Ernie4_5_MoeModel", "Ernie4_5_MoeForCausalLM"],
     "ernie4_5_moe_vl": [],
     "paddleocr_vl": [],
+    "moondream2": [],
     "qwen2_5_vl": [],
     "qwen3_vl": [],
     "qwen3_5": [],
@@ -387,6 +397,7 @@ if TYPE_CHECKING:
     from .kimi_k25 import *
     from .kimi_k2 import *
     from .paddleocr_vl import *
+    from .moondream2 import *
     from .llama import *
     from .optimization import *
     from .qwen2 import *

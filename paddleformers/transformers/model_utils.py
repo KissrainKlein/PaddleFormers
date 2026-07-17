@@ -46,7 +46,13 @@ from huggingface_hub import (
 )
 from huggingface_hub.utils import EntryNotFoundError
 from paddle import Tensor
-from paddle.distributed.fleet.meta_parallel import LocalSharedLayerDesc
+try:
+    from paddle.distributed.fleet.meta_parallel import LocalSharedLayerDesc
+except ImportError:
+    # Paddle 3.0 removed the local pipeline shared-layer descriptor.  It is
+    # only needed when building pipeline-parallel name mappings; use the
+    # regular descriptor so non-pipeline model imports remain compatible.
+    from paddle.distributed.fleet.meta_parallel.parallel_layers import SharedLayerDesc as LocalSharedLayerDesc
 from paddle.distributed.fleet.meta_parallel.parallel_layers import (
     PipelineLayer,
     SharedLayerDesc,
@@ -2917,8 +2923,15 @@ class PretrainedModel(Layer, GenerationMixin, ConversionMixin):
             except Exception as e:
                 logger.error(f"Failed to delete {metadata_path}: {e}")
 
-            # change dtype in aoa
-            if dtype is not None:
+            # Change dtype in AOA only when an actual reduced-precision conversion is requested.
+            # Paddle 3.3's AOA engine rejects a self-referential identity mapping
+            # (``key -> key, dtype='float32'``) because its source has not yet been
+            # assigned. FP32 checkpoints already match the initialized parameter dtype,
+            # so no conversion statement is needed in that case.
+            # Skip identity dtype mapping for fleet models as well: their state_dict
+            # keys can differ from the checkpoint keys and their AOA config supplies
+            # any required conversion rules.
+            if dtype is not None and str(dtype) != "float32" and not getattr(cls, "is_fleet", False):
                 for key in model.state_dict().keys():
                     # keep fp32
                     if model.state_dict()[key].dtype == paddle.float32:

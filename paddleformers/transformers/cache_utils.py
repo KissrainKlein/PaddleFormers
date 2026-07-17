@@ -79,7 +79,7 @@ class CacheLayerMixin(ABC):
         if hasattr(self, "cumulative_length"):
             self.cumulative_length = 0
 
-    def reorder_cache(self, beam_idx: paddle.LongTensor) -> None:
+    def reorder_cache(self, beam_idx: paddle.Tensor) -> None:
         """Reorders this layer's cache for beam search."""
         if self.get_seq_length() > 0:
             self.keys = self.keys.index_select(axis=0, index=beam_idx.to(self.keys.place))
@@ -101,8 +101,10 @@ class DynamicLayer(CacheLayerMixin):
         initial_keys_shape = [B, N, 0, H_k]
         initial_values_shape = [B, N, 0, H_v]
 
-        self.keys = paddle.empty(initial_keys_shape, dtype=self.dtype, device=self.place)
-        self.values = paddle.empty(initial_values_shape, dtype=self.dtype, device=self.place)
+        # Paddle 3.0 chooses the allocation place from the active device;
+        # unlike newer releases, paddle.empty does not accept ``device``.
+        self.keys = paddle.empty(initial_keys_shape, dtype=self.dtype)
+        self.values = paddle.empty(initial_values_shape, dtype=self.dtype)
         self.is_initialized = True
 
     def update(
@@ -350,7 +352,7 @@ class Cache:
         for layer_idx in range(len(self.layers)):
             self.layers[layer_idx].reset()
 
-    def reorder_cache(self, beam_idx: paddle.LongTensor):
+    def reorder_cache(self, beam_idx: paddle.Tensor):
         """Reorder the cache for beam search"""
         for layer_idx in range(len(self.layers)):
             self.layers[layer_idx].reorder_cache(beam_idx)
