@@ -351,6 +351,49 @@ class HunyuanPretrainedModel(PretrainedModel):
     transpose_weight_keys = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 
     @classmethod
+    def _get_tensor_parallel_mappings(cls, config, is_split=True):
+        from functools import partial
+
+        from ..conversion_utils import split_or_merge_func
+
+        fn = split_or_merge_func(
+            is_split=is_split,
+            tensor_model_parallel_size=config.tensor_model_parallel_size,
+            tensor_parallel_rank=config.tensor_parallel_rank,
+            num_attention_heads=config.num_attention_heads,
+        )
+        mappings = {
+            "model.embed_tokens.weight": partial(fn, is_column=False),
+            "lm_head.weight": partial(fn, is_column=False),
+        }
+        for layer_idx in range(config.num_hidden_layers):
+            layer_prefix = f"model.layers.{layer_idx}"
+            mappings.update(
+                {
+                    f"{layer_prefix}.self_attn.qkv_proj.weight": partial(
+                        fn,
+                        is_column=True,
+                        is_naive_3fuse=True,
+                        num_kv_groups=config.num_key_value_heads,
+                    ),
+                    f"{layer_prefix}.self_attn.o_proj.weight": partial(fn, is_column=False),
+                    f"{layer_prefix}.mlp.up_gate_proj.weight": partial(
+                        fn, is_column=True, is_naive_2fuse=True
+                    ),
+                    f"{layer_prefix}.mlp.down_proj.weight": partial(fn, is_column=False),
+                }
+            )
+            if config.attention_bias:
+                mappings[f"{layer_prefix}.self_attn.qkv_proj.bias"] = partial(
+                    fn,
+                    is_column=True,
+                    is_naive_3fuse=True,
+                    num_kv_groups=config.num_key_value_heads,
+                )
+
+        return mappings
+
+    @classmethod
     def _gen_aoa_config(cls, config: HunyuanConfig):
         model_prefix = "" if cls == cls.base_model_class else "model."
         is_fleet = getattr(cls, "is_fleet", False)
@@ -1226,7 +1269,8 @@ class HunyuanForCausalLMPipeFleet(HunyuanPretrainedModel, GeneralModelForCausalL
         return gpt_model
 
 
-# Exact Hugging Face architecture name used by Hunyuan Dense V1 checkpoints.
+# Exact Hugging Face architecture names used by Hunyuan Dense V1 checkpoints.
+HunYuanDenseV1Model = HunyuanModel
 HunYuanDenseV1ForCausalLM = HunyuanForCausalLM
 
 

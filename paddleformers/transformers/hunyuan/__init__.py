@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import sys
+
 from typing import TYPE_CHECKING
 
-from ...utils.lazy_import import _LazyModule
+from ..utils import _LazyModule
 
 import_structure = {
     "tokenizer": ["HunyuanTokenizer"],
@@ -22,10 +22,16 @@ import_structure = {
     "configuration": ["HunyuanConfig"],
     "modeling": [
         "HunyuanModel",
+        "HunYuanDenseV1Model",
         "HunyuanPretrainedModel",
         "HunyuanForCausalLM",
         "HunYuanDenseV1ForCausalLM",
         "HunyuanForCausalLMPipe",
+        "HunyuanForSequenceClassification",
+        "HunyuanForTokenClassification",
+        "HunyuanSentenceEmbedding",
+        "HunyuanForCausalLMFleet",
+        "HunyuanForCausalLMPipeFleet",
     ],
 }
 
@@ -35,9 +41,8 @@ if TYPE_CHECKING:
     from .tokenizer import *
     from .tokenizer_fast import *
 else:
+    import sys
+
     sys.modules[__name__] = _LazyModule(
-        __name__,
-        globals()["__file__"],
-        import_structure,
-        module_spec=__spec__,
+        __name__, globals()["__file__"], import_structure
     )
