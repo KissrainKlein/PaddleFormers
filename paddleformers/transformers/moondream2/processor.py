@@ -83,22 +83,43 @@ class Moondream2Processor(ProcessorMixin):
             Moondream2ProcessorKwargs, tokenizer_init_kwargs=self.tokenizer.init_kwargs, **kwargs
         )
         image_inputs = self.image_processor(images, **output_kwargs["images_kwargs"]) if images is not None else {}
+        return_tensors = output_kwargs["text_kwargs"].pop("return_tensors", None)
         if task is not None:
-            prompt = self.build_task_prompt(task, text=text, length=task_length)
-            if isinstance(prompt, tuple):
-                prefix, question, suffix = prompt
-                tokenized_question = self.tokenizer(question, add_special_tokens=False)["input_ids"]
-                if tokenized_question and isinstance(tokenized_question[0], list):
-                    tokenized_question = tokenized_question[0]
-                input_ids = [prefix + tokenized_question + suffix]
-                text_inputs = {"input_ids": input_ids, "attention_mask": [[1] * len(input_ids[0])]}
+            if task == "caption":
+                prompt_count = len(image_inputs["pixel_values"]) if images is not None else 1
+                prompts = [None] * prompt_count
+            elif isinstance(text, str):
+                prompts = [text]
+            elif isinstance(text, list) and text and all(isinstance(item, str) for item in text):
+                prompts = text
             else:
-                text_inputs = {"input_ids": [prompt], "attention_mask": [[1] * len(prompt)]}
+                raise ValueError("task text must be a string or a non-empty list of strings")
+            if images is not None and len(prompts) != len(image_inputs["pixel_values"]):
+                raise ValueError("task prompts and images must have the same batch size")
+            input_ids = []
+            for prompt_text in prompts:
+                prompt = self.build_task_prompt(task, text=prompt_text, length=task_length)
+                if isinstance(prompt, tuple):
+                    prefix, question, suffix = prompt
+                    tokenized_question = self.tokenizer(question, add_special_tokens=False)["input_ids"]
+                    if tokenized_question and isinstance(tokenized_question[0], list):
+                        tokenized_question = tokenized_question[0]
+                    input_ids.append(prefix + tokenized_question + suffix)
+                else:
+                    input_ids.append(prompt)
+            text_inputs = self.tokenizer.pad(
+                {"input_ids": input_ids},
+                padding=output_kwargs["text_kwargs"].get("padding", False),
+                max_length=output_kwargs["text_kwargs"].get("max_length"),
+                pad_to_multiple_of=output_kwargs["text_kwargs"].get("pad_to_multiple_of"),
+                return_attention_mask=True,
+                return_tensors=None,
+            )
         elif text is not None:
             text_inputs = self.tokenizer(text, **output_kwargs["text_kwargs"])
         else:
             text_inputs = {}
-        return BatchFeature(data={**text_inputs, **image_inputs})
+        return BatchFeature(data={**text_inputs, **image_inputs}, tensor_type=return_tensors)
 
     def post_process_image_text_to_text(self, generated_outputs, **kwargs):
         return self.tokenizer.batch_decode(generated_outputs, skip_special_tokens=True, **kwargs)

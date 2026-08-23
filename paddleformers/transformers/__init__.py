@@ -309,8 +309,6 @@ import_structure = {
     "qwen2_vl": [],
     "qwen3_moe": [],
     "qwen3_next": [],
-    "glm4.configuration": ["Glm4Config"],
-    "glm4.modeling": ["Glm4Model", "Glm4ForCausalLM"],
     "glm4_moe.configuration": ["Glm4MoeConfig"],
     "whisper.processor": ["WhisperFeatureExtractor"],
     "glm4_moe": ["Glm4MoeForCausalLMPipe", "Glm4MoeModel", "Glm4MoeForCausalLM", "Glm4MoeForCausalLMDeprecated"],
@@ -417,8 +415,6 @@ if TYPE_CHECKING:
     from .phi3 import *
     from .gemma3_text import *
     from .glm_ocr import *
-    from .glm4.configuration import *
-    from .glm4.modeling import *
 else:
     sys.modules[__name__] = _LazyModule(
         __name__,
