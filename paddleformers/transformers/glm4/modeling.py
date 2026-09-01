@@ -87,8 +87,10 @@ def apply_rotary_pos_emb(q, k, cos, sin, unsqueeze_dim=1):
 
     # RoPE frequencies are calculated in fp32.  Cast each copy at its point of
     # use so mixed-precision Q/K projections retain their respective dtypes.
-    q_cos, q_sin = cos.astype(q.dtype), sin.astype(q.dtype)
-    k_cos, k_sin = cos.astype(k.dtype), sin.astype(k.dtype)
+    q_cos = cos.cast(q.dtype)
+    q_sin = sin.cast(q.dtype)
+    k_cos = cos.cast(k.dtype)
+    k_sin = sin.cast(k.dtype)
 
     rotary_dim = cos.shape[-1]
     q_rot, q_pass = q[..., :rotary_dim], q[..., rotary_dim:]
@@ -535,13 +537,9 @@ class Glm4ForCausalLM(Glm4PretrainedModel):
 
         loss = None
         if labels is not None:
-            # Keep the standard causal shift: callers must provide unshifted
-            # labels aligned with input_ids, with ignored positions set to -100.
-            shift_logits = logits[:, :-1, :]
-            shift_labels = labels[:, 1:]
             loss = F.cross_entropy(
-                shift_logits.reshape([-1, shift_logits.shape[-1]]),
-                shift_labels.reshape([-1]),
+                logits.reshape([-1, logits.shape[-1]]),
+                labels.reshape([-1]),
                 ignore_index=-100,
                 reduction="mean",
             )

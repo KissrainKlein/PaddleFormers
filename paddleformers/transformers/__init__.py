@@ -76,6 +76,7 @@ import_structure = {
         "AutoModelForQuestionAnswering",
         "AutoModelForMultipleChoice",
         "AutoModelForMaskedLM",
+        "AutoModelForCausalLM",
         "AutoModelForCausalLMPipe",
         "AutoEncoder",
         "AutoDecoder",
